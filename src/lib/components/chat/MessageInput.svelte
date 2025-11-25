@@ -119,6 +119,10 @@
 	let selectedValvesItemId = null;
 	let integrationsMenuCloseOnOutsideClick = true;
 
+	let isFileUploading = false
+	let isAnyLoading = false;
+	$: isAnyLoading = isFileUploading || files.some(file => file.status === 'uploading');
+
 	$: if (!showValvesModal) {
 		integrationsMenuCloseOnOutsideClick = true;
 	}
@@ -1009,8 +1013,10 @@
 						multiple
 						on:change={async () => {
 							if (inputFiles && inputFiles.length > 0) {
+								isFileUploading = true;
 								const _inputFiles = Array.from(inputFiles);
-								inputFilesHandler(_inputFiles);
+								await inputFilesHandler(_inputFiles);
+								isFileUploading = false;
 							} else {
 								toast.error($i18n.t(`File not found.`));
 							}
@@ -1295,7 +1301,8 @@
 
 																if (enterPressed) {
 																	e.preventDefault();
-																	if (prompt !== '' || files.length > 0) {
+																	// Check same conditions as button disabled state
+																	if ((prompt !== '' || files.length > 0) && !isAnyLoading) {
 																		dispatch('submit', prompt);
 																	}
 																}
@@ -1385,6 +1392,7 @@
 										}}
 										uploadGoogleDriveHandler={async () => {
 											try {
+												isFileUploading = true
 												const fileData = await createPicker();
 												if (fileData) {
 													const file = new File([fileData.blob], fileData.name, {
@@ -1402,9 +1410,13 @@
 													})
 												);
 											}
+											finally {
+												isFileUploading = false
+											}
 										}}
 										uploadOneDriveHandler={async (authorityType) => {
 											try {
+												isFileUploading = true;
 												const fileData = await pickAndDownloadFile(authorityType);
 												if (fileData) {
 													const file = new File([fileData.blob], fileData.name, {
@@ -1416,6 +1428,9 @@
 												}
 											} catch (error) {
 												console.error('OneDrive Error:', error);
+											}
+											finally {
+												isFileUploading = false
 											}
 										}}
 										onUpload={async (e) => {
@@ -1694,7 +1709,7 @@
 												</button>
 											</Tooltip>
 										</div>
-									{:else if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
+									{:else if prompt === '' && files.length === 0 && !isAnyLoading && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
 										<div class=" flex items-center">
 											<!-- {$i18n.t('Call')} -->
 											<Tooltip content={$i18n.t('Voice mode')}>
@@ -1762,11 +1777,11 @@
 											<Tooltip content={$i18n.t('Send message')}>
 												<button
 													id="send-message-button"
-													class="{!(prompt === '' && files.length === 0)
+													class="{!(prompt === '' || isAnyLoading)
 														? 'bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 '
 														: 'text-white bg-gray-200 dark:text-gray-900 dark:bg-gray-700 disabled'} transition rounded-full p-1.5 self-center"
 													type="submit"
-													disabled={prompt === '' && files.length === 0}
+													disabled={prompt === '' || isAnyLoading}
 												>
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
